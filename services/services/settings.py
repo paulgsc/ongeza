@@ -50,6 +50,7 @@ INSTALLED_APPS = [
 
     'users',
     'rest_framework',
+    'encrypted_model_fields',
     'django_celery_beat',
 ]
 

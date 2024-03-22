@@ -25,8 +25,6 @@ class CustomUser(AbstractUser):
     phonenumber = models.CharField(
         validators=[phone_regex], max_length=17, blank=True, null=True)
     photoURL = models.URLField(blank=True, null=True)
-    image = models.ImageField(null=True, blank=True,
-                              default='/placeholder.png')
     last_login_device = models.CharField(max_length=255, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
