@@ -47,3 +47,30 @@ class MaskedFieldSerializer(FormattedFieldSerializer, serializers.CharField):
     def formatter(self, value):
         """Masks sensitive data by replacing all characters with asterisks."""
         return '*' * len(str(value))
+
+class PercentageFieldSerializer(FormattedFieldSerializer, serializers.DecimalField):
+    """
+    Serializer for formatting decimal values as percentages.
+    """
+    def formatter(self, value):
+        """Formats the decimal value as a percentage."""
+        percentage = decimal.Decimal(value) * 100
+        return '{:.2f}%'.format(percentage)
+
+
+class BooleanFieldSerializer(FormattedFieldSerializer, serializers.BooleanField):
+    """
+    Serializer for formatting boolean values.
+    """
+    def formatter(self, value):
+        """Formats the boolean value as 'True' or 'False'."""
+        return 'True' if value else 'False'
+
+
+class DurationFieldSerializer(FormattedFieldSerializer, serializers.DurationField):
+    """
+    Serializer for formatting durations.
+    """
+    def formatter(self, value):
+        """Formats the duration in a human-readable format."""
+        return str(value)
