@@ -7,7 +7,7 @@ class Category(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 class Product(models.Model):
@@ -17,7 +17,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
     image_url = models.URLField()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 class Customer(models.Model):

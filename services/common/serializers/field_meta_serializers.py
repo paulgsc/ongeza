@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+
 class FieldMetaSerializer(serializers.Serializer):
     """
     Serializer to return field metadata for a given model serializer.
@@ -45,7 +46,6 @@ class FieldMetaSerializer(serializers.Serializer):
         return fields_meta
 
 
-
 class ReadOnlyBaseSerializer(serializers.ModelSerializer):
     """
     Base serializer for read-only operations.
@@ -54,10 +54,13 @@ class ReadOnlyBaseSerializer(serializers.ModelSerializer):
         abstract = True
 
     def create(self, validated_data):
-        raise serializers.ValidationError("Creation not allowed for this resource.")
+        raise serializers.ValidationError(
+            "Creation not allowed for this resource.")
 
     def update(self, instance, validated_data):
-        raise serializers.ValidationError("Update not allowed for this resource.")
+        raise serializers.ValidationError(
+            "Update not allowed for this resource.")
+
 
 class ReadOnlyWithMetadataSerializer(ReadOnlyBaseSerializer):
     """
