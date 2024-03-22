@@ -24,6 +24,7 @@ Example Usage:
 from typing import Type, Dict
 from rest_framework import serializers
 
+
 class SerializerRegistry:
     """
     A registry for storing model-specific serializers.
@@ -51,14 +52,15 @@ class SerializerRegistry:
 
         Returns:
             Type[serializers.ModelSerializer]: The serializer class.
-        
+
         Raises:
             ValueError: If no serializer is registered for the provided model name.
         """
         try:
             return self.registry[model_name]
         except KeyError:
-            raise ValueError(f"No serializer registered for model '{model_name}'")
+            raise ValueError(
+                f"No serializer registered for model '{model_name}'")
 
     def serialize_data(self, model_name: str, instance, **kwargs):
         """
@@ -93,10 +95,33 @@ class SerializerRegistry:
             ValueError: If the serializer is not valid.
         """
         serializer_class = self.get_serializer_class(model_name)
-        serializer = serializer_class(instance=instance, data=validated_data, **kwargs)
+        serializer = serializer_class(
+            instance=instance, data=validated_data, **kwargs)
         if serializer.is_valid():
             serializer.save()
             return serializer.instance
         else:
             raise ValueError(serializer.errors)
 
+    def create_instance(self, model_name: str, validated_data, **kwargs):
+        """
+        Create a new model instance using the registered serializer.
+
+        Args:
+            model_name (str): The name of the model.
+            validated_data: The validated data to create the instance with.
+            **kwargs: Additional keyword arguments to pass to the serializer.
+
+        Returns:
+            Any: The created model instance.
+
+        Raises:
+            ValueError: If the serializer is not valid.
+        """
+        serializer_class = self.get_serializer_class(model_name)
+        serializer = serializer_class(data=validated_data, **kwargs)
+        if serializer.is_valid():
+            serializer.save()
+            return serializer.instance
+        else:
+            raise ValueError(serializer.errors)
