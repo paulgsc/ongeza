@@ -18,7 +18,9 @@ cryptography==42.0.5
 daphne==4.1.0
 Django==5.0.3
 django-celery-beat==2.6.0
+django-cors-headers==4.3.1
 django-encrypted-model-fields==0.6.5
+django-ratelimit==4.1.0
 django-redis==5.4.0
 django-timezone-field==6.1.0
 djangorestframework==3.15.0
@@ -31,6 +33,7 @@ idna==3.6
 incremental==22.10.0
 kombu==5.3.5
 prompt-toolkit==3.0.43
+psycopg2==2.9.9
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
 pycparser==2.21
@@ -51,5 +54,3 @@ tzdata==2024.1
 vine==5.1.0
 wcwidth==0.2.13
 zope.interface==6.2
-django-ratelimit
-django-cors-headers
