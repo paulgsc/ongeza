@@ -1,7 +1,12 @@
+"""
+    Pets models
+"""
 from django.db import models
 from users.models import CustomUser
 
 # Create your models here.
+
+
 class BasePermissionModel(models.Model):
     class Meta:
         abstract = True
@@ -12,12 +17,17 @@ class BasePermissionModel(models.Model):
             ('view_product', 'Can view product'),
         ]
 
+
 class Category(BasePermissionModel):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
 
     def __str__(self) -> str:
         return self.name
+
+    def can_be_featured(self):
+        return True  # Override to return True
+
 
 class Product(BasePermissionModel):
     name = models.CharField(max_length=200)
@@ -29,8 +39,10 @@ class Product(BasePermissionModel):
     def __str__(self) -> str:
         return self.name
 
+
 class Customer(BasePermissionModel):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.OneToOneField(
+        CustomUser, on_delete=models.CASCADE, null=True, blank=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
@@ -38,6 +50,7 @@ class Customer(BasePermissionModel):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
 
 class Order(BasePermissionModel):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
@@ -48,6 +61,7 @@ class Order(BasePermissionModel):
 
     def __str__(self):
         return f"Order #{self.id} - {self.customer.first_name} {self.customer.last_name}"
+
 
 class OrderLine(BasePermissionModel):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)

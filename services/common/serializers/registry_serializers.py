@@ -21,10 +21,14 @@ Example Usage:
         print("Error:", serialized_book.errors)
 """
 
-from typing import Type, Dict
+import json
+import os
+from typing import Type
+from functools import lru_cache
 from rest_framework import serializers
-from django.apps import apps
 from django.utils.module_loading import import_string
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 
 class SerializerRegistry:
@@ -32,27 +36,46 @@ class SerializerRegistry:
     A registry for storing model-specific serializers.
     """
 
-    def __init__(self):
-        self.registry: Dict[str, Type[serializers.ModelSerializer]] = {}
-        self.load_serializers()
+    _instance = None
+    registry = {}
 
-    def load_serializers(self):
-        """
-        Load serializers from all installed apps and register them.
-        """
-        # Get all installed app configs
-        app_configs = apps.get_app_configs()
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls.load_serializers()
+            cls._instance.load_serializers()
+        return cls._instance
 
-        # Iterate over app configs and load serializers
-        for app_config in app_configs:
-            app_module = import_string(app_config.module.__name__)
-            if hasattr(app_module, "serializers"):
-                serializers_module = import_string(
-                    f"{app_config.module.__name__}.serializers")
-                for name, obj in vars(serializers_module).items():
-                    if isinstance(obj, type) and issubclass(obj, serializers.ModelSerializer):
-                        model_name = obj.Meta.model.__name__.lower()
-                        self.register_serializer(model_name, obj)
+    @classmethod
+    def load_serializers(cls):
+        """
+        Load serializers from JSON files in the serializers_config directory.
+        """
+        serializers_config_dir = getattr(
+            settings, 'SERIALIZERS_CONFIG_DIR', None)
+        if not serializers_config_dir:
+            raise ImproperlyConfigured(
+                'SERIALIZERS_CONFIG_DIR setting is not defined.')
+
+        for filename in os.listdir(serializers_config_dir):
+            if filename.endswith('.json'):
+                file_path = os.path.join(serializers_config_dir, filename)
+                with open(file_path, 'r') as f:
+                    serializer_configs = json.load(f)
+
+                for config in serializer_configs:
+                    model_name = config['model'].lower()
+                    serializer_path = config['serializer']
+                    try:
+                        serializer_module, serializer_class_name = serializer_path.rsplit(
+                            '.', 1)
+                        serializer_module = import_string(serializer_module)
+                        serializer_class = getattr(
+                            serializer_module, serializer_class_name)
+                        cls.register_serializer(model_name, serializer_class)
+                    except (ImportError, AttributeError) as e:
+                        raise ValueError(
+                            f"Error loading serializer for model '{model_name}': {e}")
 
     def register_serializer(self, model_name: str, serializer_class: Type[serializers.ModelSerializer]):
         """
@@ -64,7 +87,9 @@ class SerializerRegistry:
         """
         self.registry[model_name] = serializer_class
 
-    def get_serializer_class(self, model_name: str) -> Type[serializers.ModelSerializer]:
+    @classmethod
+    @lru_cache(maxsize=None)
+    def get_serializer_class(cls, model_name: str) -> Type[serializers.ModelSerializer]:
         """
         Get the serializer class for a given model name.
 
@@ -78,7 +103,7 @@ class SerializerRegistry:
             ValueError: If no serializer is registered for the provided model name.
         """
         try:
-            return self.registry[model_name]
+            return cls.registry[model_name]
         except KeyError as exc:
             raise ValueError(
                 f"No serializer registered for model '{model_name}'") from exc
