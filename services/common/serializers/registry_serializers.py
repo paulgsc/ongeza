@@ -23,6 +23,8 @@ Example Usage:
 
 from typing import Type, Dict
 from rest_framework import serializers
+from django.apps import apps
+from django.utils.module_loading import import_string
 
 
 class SerializerRegistry:
@@ -32,6 +34,25 @@ class SerializerRegistry:
 
     def __init__(self):
         self.registry: Dict[str, Type[serializers.ModelSerializer]] = {}
+        self.load_serializers()
+
+    def load_serializers(self):
+        """
+        Load serializers from all installed apps and register them.
+        """
+        # Get all installed app configs
+        app_configs = apps.get_app_configs()
+
+        # Iterate over app configs and load serializers
+        for app_config in app_configs:
+            app_module = import_string(app_config.module.__name__)
+            if hasattr(app_module, "serializers"):
+                serializers_module = import_string(
+                    f"{app_config.module.__name__}.serializers")
+                for name, obj in vars(serializers_module).items():
+                    if isinstance(obj, type) and issubclass(obj, serializers.ModelSerializer):
+                        model_name = obj.Meta.model.__name__.lower()
+                        self.register_serializer(model_name, obj)
 
     def register_serializer(self, model_name: str, serializer_class: Type[serializers.ModelSerializer]):
         """
@@ -58,9 +79,9 @@ class SerializerRegistry:
         """
         try:
             return self.registry[model_name]
-        except KeyError:
+        except KeyError as exc:
             raise ValueError(
-                f"No serializer registered for model '{model_name}'")
+                f"No serializer registered for model '{model_name}'") from exc
 
     def serialize_data(self, model_name: str, instance, **kwargs):
         """
