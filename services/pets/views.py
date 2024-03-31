@@ -21,3 +21,19 @@ class ModelFieldsView(APIView):
                 model_data.append(
                     {'name': model_name, 'record_count': record_count})
         return Response(model_data, status=200)
+
+
+class MyModelFieldMetaView(APIView):
+    """
+    View to retrieve metadata for fields of a model.
+    """
+
+    def get(self, request, *args, **kwargs):
+        # Instantiate the serializer for the model
+        serializer = MyModelSerializer()
+
+        # Get metadata for all fields in the serializer
+        fields_meta = FieldMetaSerializer.get_serializer_fields_meta(
+            serializer)
+
+        return Response(fields_meta)
