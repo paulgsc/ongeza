@@ -10,12 +10,6 @@ from users.models import CustomUser
 class BasePermissionModel(models.Model):
     class Meta:
         abstract = True
-        permissions = [
-            ('add_product', 'Can add product'),
-            ('change_product', 'Can change product'),
-            ('delete_product', 'Can delete product'),
-            ('view_product', 'Can view product'),
-        ]
 
 
 class Category(BasePermissionModel):

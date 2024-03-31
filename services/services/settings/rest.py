@@ -1,4 +1,8 @@
 from datetime import timedelta
+from django.conf import settings
+
+# Extend Django's default INSTALLED_APPS if needed
+INSTALLED_APPS = getattr(settings, 'INSTALLED_APPS', [])
 
 INSTALLED_APPS += (
     'rest_framework',

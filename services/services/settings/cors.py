@@ -14,7 +14,7 @@ INSTALLED_APPS += [
 ]
 
 CORS_ORIGIN_WHITELIST = (
-    'localhost:3000',
+    'http://localhost:3000',
 )
 
 # we only want to allow access to the api

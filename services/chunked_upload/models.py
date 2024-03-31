@@ -1,18 +1,12 @@
 import hashlib
 import uuid
-
+import os
 from django.db import models, transaction
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.models import ContentType
-from celery import states
-from celery.contrib.abortable import Task as AbortableTask
 
-from ..data.models.aoi import AOI
-
-from .settings import EXPIRATION_DELTA, UPLOAD_TO, STORAGE, DEFAULT_MODEL_USER_FIELD_NULL, DEFAULT_MODEL_USER_FIELD_BLANK
+from services.settings.upload import CHECKSUM_TYPE, EXPIRATION_DELTA, STORAGE, UPLOAD_TO, COMPLETE_EXT, INCOMPLETE_EXT
 
 
 def generate_upload_id():
@@ -56,7 +50,7 @@ class AbstractChunkedUpload(models.Model):
     @property
     def checksum(self):
         if getattr(self, '_checksum', None) is None:
-            h = hashlib.new(_settings.CHECKSUM_TYPE)
+            h = hashlib.new(CHECKSUM_TYPE)
             self.file.close()
             self.file.open(mode='rb')
             for chunk in self.file.chunks():
@@ -100,15 +94,15 @@ class AbstractChunkedUpload(models.Model):
                             size=self.offset)
 
     @transaction.atomic
-    def completed(self, completed_at=None, ext=_settings.COMPLETE_EXT):
+    def completed(self, completed_at=None, ext=COMPLETE_EXT):
         if completed_at is None:
             completed_at = timezone.now()
 
-        if ext != _settings.INCOMPLETE_EXT:
+        if ext != INCOMPLETE_EXT:
             original_path = self.file.path
             self.file.name = os.path.splitext(self.file.name)[0] + ext
         self.status = self.COMPLETE
-        self.completed_at = completed_at
+        self.completed_on = completed_at
         self.save()
         if ext != _settings.INCOMPLETE_EXT:
             os.rename(
@@ -128,6 +122,6 @@ class ChunkedUpload(AbstractChunkedUpload):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='chunked_uploads',
-        null=DEFAULT_MODEL_USER_FIELD_NULL,
-        blank=DEFAULT_MODEL_USER_FIELD_BLANK
+        null=True,
+        blank=True
     )
