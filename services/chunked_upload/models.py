@@ -30,8 +30,10 @@ class AbstractChunkedUpload(models.Model):
         (ARCHIVED, 'Archived'),
     )
 
-    upload_id = models.CharField(max_length=32, unique=True, editable=False,
-                                 default=generate_upload_id)
+    upload_id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,)
     file = models.FileField(max_length=255, upload_to=UPLOAD_TO,
                             storage=STORAGE)
     filename = models.CharField(max_length=255)
