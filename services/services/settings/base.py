@@ -1,19 +1,11 @@
 from pathlib import Path
 from django.contrib.messages import constants as messages
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
-# Debug
-DEBUG = False
 
 # Allowed hosts
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '[::1]',
-    # Assuming SITE_DOMAIN_NAME is defined elsewhere
-    SITE_DOMAIN_NAME,
 ]
 
 # Application definition
@@ -30,62 +22,64 @@ INSTALLED_APPS = [
     'common',
     'users',
     'pets',
+    'chunked_upload',
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'app.middleware.ratelimit_middleware.RateLimitMiddleware',
+    'app.middleware.admin_auth_middleware.AdminAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'ebagis.urls'
-WSGI_APPLICATION = 'ebagis.wsgi.application'
+ROOT_URLCONF = 'services.urls'
 
-# Internationalization
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'US/Pacific'
-USE_I18N = True
-USE_L10N = True
-USE_TZ = True
-
-# Django user model
-AUTH_USER_MODEL = 'auth.User'
-
-# URL PATH SETTINGS
-REST_ROOT = "api/rest/"
-
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'static'
-MEDIA_ROOT = BASE_DIR / "media"
-SITE_STATIC_ROOT = BASE_DIR / 'local_static'
-ADMIN_MEDIA_PREFIX = '/static/admin/'
-
-STATICFILES_FINDERS = [
-    'django.contrib.staticfiles.finders.FileSystemFinder',
-    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
 ]
 
-# Message settings
-MESSAGE_TAGS = {
-    messages.DEBUG: 'alert-info alert-autoclose',
-    messages.INFO: 'alert-info alert-dismissible',
-    messages.SUCCESS: 'alert-success alert-autoclose',
-    messages.WARNING: 'alert-warning alert-dismissible',
-    messages.ERROR: 'alert-danger alert-dismissible',
-}
+WSGI_APPLICATION = 'services.wsgi.application'
+ASGI_APPLICATION = 'services.asgi.application'
 
-MIGRATION_MODULES = {
-    'sites': 'ebagis.fixtures.sites_migrations',
-    'socialaccount': 'ebagis.fixtures.socialaccount_migrations',
-}
+# Internationalization
+# https://docs.djangoproject.com/en/5.0/topics/i18n/
 
-# django sites
-SITE_ID = 1
+LANGUAGE_CODE = 'en-us'
 
-# project-wide email settings
-EMAIL_SUBJECT_PREFIX = "[ebagis] "
-DEFAULT_FROM_EMAIL = "ebagis@pdx.edu"
+TIME_ZONE = 'UTC'
+
+USE_I18N = True
+
+USE_TZ = True
+
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.0/howto/static-files/
+
+STATIC_URL = 'static/'
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django user model
+AUTH_USER_MODEL = 'users.CustomUser'

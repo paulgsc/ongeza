@@ -5,15 +5,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from rest_framework import status
-
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-
-from drf_chunked_upload import settings as _settings
+from utils.queries import owner_or_admin
+from chunked_upload.serializers import ChunkedUploadSerializer
 from ..models import ChunkedUpload
 from ..exceptions import ChunkedUploadError
-from drf_chunked_upload.serializers import ChunkedUploadSerializer
 
 
 class ChunkedUploadBaseView(GenericAPIView):
@@ -277,16 +276,17 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
                                      detail='checksum does not match')
 
     def handle_post(self, request, pk=None, *args, **kwargs) -> Response:
-        chunked_upload = None
-        if pk:
-            upload_id = pk
-        else:
-            chunked_upload = self._put_chunk(request, *args,
-                                             whole=True, **kwargs)
-            upload_id = chunked_upload.id
+        # If pk is provided, use it as the upload_id
+        upload_id = pk
 
+        # If pk is not provided, handle chunked upload asynchronously
+        if not pk:
+            async_result = process_upload_chunk.delay(
+                request.data, whole=True, **kwargs)
+            return Response({"task_id": async_result.id}, status=status.HTTP_202_ACCEPTED)
+
+        # Check if checksum is provided
         checksum = request.data.get(_settings.CHECKSUM_TYPE)
-
         if self.do_checksum_check and not checksum:
             raise ChunkedUploadError(
                 status=status.HTTP_400_BAD_REQUEST,
@@ -294,17 +294,21 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
                     _settings.CHECKSUM_TYPE),
             )
 
-        if not chunked_upload:
-            chunked_upload = get_object_or_404(
-                self.get_queryset(), pk=upload_id)
+        # Get the corresponding object if chunked_upload is not None
+        chunked_upload = get_object_or_404(self.get_queryset(), pk=upload_id)
 
+        # Validate the chunked upload
         self.is_valid_chunked_upload(chunked_upload)
 
+        # Perform checksum check if required
         if self.do_checksum_check:
-            self.checksum_check(chunked_upload, checksum)
+            if should_use_celery(chunked_upload.file.size):
+                task = checksum_check.delay(chunked_upload, checksum)
+                return Response({"task_id": task.id}, status=status.HTTP_202_ACCEPTED)
+            else:
+                self.checksum_check(chunked_upload, checksum)
 
-        chunked_upload.completed()
-
+        # Handle completion
         return self.on_completion(chunked_upload, request)
 
     @method_decorator(cache_page(0))

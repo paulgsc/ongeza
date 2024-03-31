@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
@@ -99,6 +99,23 @@ class AbstractChunkedUpload(models.Model):
         return UploadedFile(file=self.file, name=self.filename,
                             size=self.offset)
 
+    @transaction.atomic
+    def completed(self, completed_at=None, ext=_settings.COMPLETE_EXT):
+        if completed_at is None:
+            completed_at = timezone.now()
+
+        if ext != _settings.INCOMPLETE_EXT:
+            original_path = self.file.path
+            self.file.name = os.path.splitext(self.file.name)[0] + ext
+        self.status = self.COMPLETE
+        self.completed_at = completed_at
+        self.save()
+        if ext != _settings.INCOMPLETE_EXT:
+            os.rename(
+                original_path,
+                os.path.splitext(self.file.path)[0] + ext,
+            )
+
     class Meta:
         abstract = True
 
@@ -114,83 +131,3 @@ class ChunkedUpload(AbstractChunkedUpload):
         null=DEFAULT_MODEL_USER_FIELD_NULL,
         blank=DEFAULT_MODEL_USER_FIELD_BLANK
     )
-
-
-class Upload(ChunkedUpload):
-    upload_dir = settings.UPLOADS_DIRECTORY
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.UUIDField(null=True, blank=True)
-    content_object = GenericForeignKey('content_type', 'object_id',
-                                       for_concrete_model=False)
-    is_update = models.BooleanField(default=False)
-    parent_object_content_type = models.ForeignKey(
-        ContentType, related_name="upload_parent",
-        null=True, blank=True, on_delete=models.CASCADE
-    )
-    parent_object_id = models.UUIDField(null=True, blank=True)
-    parent_object = GenericForeignKey('parent_object_content_type',
-                                      'parent_object_id',
-                                      for_concrete_model=False)
-    comment = models.TextField(blank=True)
-    task = models.ForeignKey(AbortableTask, related_name='upload',
-                             null=True, blank=True, on_delete=models.CASCADE)
-
-    @property
-    def nstatus(self):
-        if self.status == self.COMPLETE and self.task.status == states.SUCCESS:
-            status = 'COMPLETED'
-        elif self.status == self.COMPLETE and self.task.status == states.PENDING:
-            status = 'QUEUED'
-        elif self.status == self.COMPLETE and self.task.status in [states.RETRY, states.STARTED]:
-            status = 'PROCESSING'
-        elif self.status == self.UPLOADING:
-            status = 'INCOMPLETE'
-        elif self.status == self.COMPLETE and self.task.status == states.FAILURE:
-            status = 'FAILED'
-        elif (self.status == self.COMPLETE and self.task.status in ['ABORTED', states.REVOKED]) or self.status == self.ABORTED:
-            status = 'CANCELLED'
-        else:
-            status = 'UNKNOWN'
-        return status
-
-    def is_aborted(self):
-        return self.status == self.ABORTED
-
-    def delete_files(self):
-        if self.file:
-            storage, path = self.file.storage, self.file.path
-            storage.delete(path)
-
-    def cancel(self, total_annihilation=False):
-        from ..tasks import process_upload
-        if self.status == self.UPLOADING:
-            self.status = self.ABORTED
-            self.save()
-            return True
-        elif self.status == self.COMPLETE and \
-                states.state(self.task.status) < states.REVOKED:
-            task = process_upload.AsyncResult(self.task.task_id)
-            task.abort()
-            self.status = self.ABORTED
-            self.save()
-            return True
-        elif self.status >= self.ABORTED or \
-                (self.task and states.state(self.task.status) >=
-                 states.REVOKED):
-            return False
-        else:
-            return None
-
-    def get_objects_aoi_id(self):
-        aoi_id = None
-        if self.content_type == ContentType.objects.get_for_model(AOI):
-            aoi_id = self.object_id
-        else:
-            try:
-                aoi_id = self.content_object.aoi.id
-            except AttributeError:
-                pass
-        if aoi_id and not AOI.objects.get(id=aoi_id).current:
-            # we don't want any removed AOIs
-            aoi_id = None
-        return aoi_id

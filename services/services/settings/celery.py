@@ -1,8 +1,15 @@
 import os
+from django.conf import settings
 
-INSTALLED_APPS += (
+# Extend Django's default INSTALLED_APPS if needed
+INSTALLED_APPS = getattr(settings, 'INSTALLED_APPS', [])
+
+# Append additional apps
+INSTALLED_APPS += [
     'django_celery_beat',
-)
+    # Add other apps here
+]
+
 
 CELERY_BROKER_URL = os.environ.get('REDIS_URL')
 CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL')

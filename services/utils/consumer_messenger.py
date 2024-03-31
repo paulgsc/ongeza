@@ -31,7 +31,6 @@ channel_manager.main()
 import json
 import time
 import redis
-from config import REDIS_URL, REDIS_PORT
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from .exceptions import RedisPubSubError
