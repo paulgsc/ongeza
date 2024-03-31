@@ -22,10 +22,12 @@ class AbstractChunkedUpload(models.Model):
     UPLOADING = 1
     COMPLETE = 2
     ABORTED = 4
+    ARCHIVED = 5
     STATUS_CHOICES = (
         (UPLOADING, 'Incomplete'),
         (COMPLETE, 'Complete'),
         (ABORTED, 'Aborted'),
+        (ARCHIVED, 'Archived'),
     )
 
     upload_id = models.CharField(max_length=32, unique=True, editable=False,
@@ -104,7 +106,7 @@ class AbstractChunkedUpload(models.Model):
         self.status = self.COMPLETE
         self.completed_on = completed_at
         self.save()
-        if ext != _settings.INCOMPLETE_EXT:
+        if ext != INCOMPLETE_EXT:
             os.rename(
                 original_path,
                 os.path.splitext(self.file.path)[0] + ext,

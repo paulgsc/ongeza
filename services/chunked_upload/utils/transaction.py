@@ -1,12 +1,12 @@
 from __future__ import absolute_import
-
+from functools import wraps
 from celery import current_task, shared_task
 from celery.states import STARTED
 from celery.contrib.abortable import AbortableTask
 
 from django.db import transaction
-
-from .exceptions import AbortedError
+from chunked_upload.models import ChunkedUpload
+from utils.exceptions import AbortedError
 
 
 # this is just adding the if_aborted method to AbortableTask
@@ -32,7 +32,9 @@ class CustomAbortableTask(AbortableTask):
 def abortable_task(funct):
     # we need to wrap the task callable with the boilerplate
     # to handle the setup stuff related to allowing aborts
+    @wraps(funct)
     def task_wrapper(self, *args, **kwargs):
+        instance = kwargs.get('instance', None)
         try:
             # check if aborted before doing anything
             # if so, this will raise Aborted Error
@@ -40,6 +42,11 @@ def abortable_task(funct):
             # if not aborted set to started
             # FIXUP: this seems to be a race condition
             self.update_state(state=STARTED)
+
+            # Enforce instance type if instance is provided
+            if instance and not isinstance(instance, ChunkedUpload):
+                raise AbortedError("Instance must be an instance of YourModel")
+
             # call the task function
             ret = funct(self, *args, **kwargs)
         except AbortedError:
@@ -57,7 +64,7 @@ def abortable_task(funct):
 # we define our own atomic decorator that will check if the task
 # is aborted before exiting the transaction, and if true rollback
 # by raising an AbortedException
-def atomic(funct):
+def atomic_with_abortion(funct):
     def abort_wrapper(*args, **kwargs):
         ret = funct(*args, **kwargs)
         if current_task and hasattr(current_task, "if_aborted"):

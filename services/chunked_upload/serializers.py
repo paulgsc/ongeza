@@ -17,3 +17,15 @@ class ChunkedUploadSerializer(serializers.ModelSerializer):
         model = ChunkedUpload
         fields = '__all__'
         read_only_fields = ('status', 'completed_at')
+
+
+class ChunkedUploadReadOnlySerializer(serializers.ModelSerializer):
+    file_size = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChunkedUpload
+        exclude = ['id', 'file', 'offset']
+        read_only_fields = '__all__'
+
+    def get_file_size(self, obj):
+        return obj.file.size if obj.file else None

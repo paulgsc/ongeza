@@ -2,7 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 
-class UploadCompletionConsumer(AsyncWebsocketConsumer):
+class UploadProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
 
         # Accept the WebSocket connection
@@ -21,10 +21,14 @@ class UploadCompletionConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
-    async def upload_completion(self, event):
-        task_id = event['task_id']
-        status = event['status']
-        await self.send(text_data=json.dumps({
-            'task_id': task_id,
-            'status': status
-        }))
+    async def checksum_mismatch(self, event):
+
+        mismatch = event.get('mismatch', True)
+
+        data = {
+            **mismatch
+        }
+
+        data['message'] = 'Checksum mismatch. Please retry the upload.'
+
+        await self.send(text_data=json.dumps(data))
