@@ -12,6 +12,9 @@ Usage:
 1. FieldMetaSerializer:
    - Use the `get_serializer_fields_meta` method to retrieve field metadata for all fields
      in a given serializer class.
+   - Example:
+        # Get all field metadata for the serializer
+        fields_metadata = FieldMetaSerializer.get_serializer_fields_meta(YourModelSerializer)
 
 2. ReadOnlyBaseSerializer:
    - Inherit from this class to create read-only serializers.
@@ -34,7 +37,24 @@ from typing import Any, Dict, List
 
 from rest_framework import serializers
 
-class FieldMetaSerializer(serializers.Serializer):
+
+class ReadOnlyBaseSerializer(serializers.ModelSerializer):
+    """
+    Base serializer for read-only operations.
+    """
+    class Meta:
+        abstract = True
+
+    def create(self, validated_data: Dict[str, Any]) -> None:
+        raise serializers.ValidationError(
+            "Creation not allowed for this resource.")
+
+    def update(self, instance: Any, validated_data: Dict[str, Any]) -> None:
+        raise serializers.ValidationError(
+            "Update not allowed for this resource.")
+
+
+class FieldMetaSerializer(ReadOnlyBaseSerializer):
     """
     Serializer to return field metadata for a given model serializer.
     """
@@ -79,28 +99,11 @@ class FieldMetaSerializer(serializers.Serializer):
         return fields_meta
 
 
-class ReadOnlyBaseSerializer(serializers.ModelSerializer):
-    """
-    Base serializer for read-only operations.
-    """
-    class Meta:
-        abstract = True
-
-    def create(self, validated_data: Dict[str, Any]) -> None:
-        raise serializers.ValidationError(
-            "Creation not allowed for this resource.")
-
-    def update(self, instance: Any, validated_data: Dict[str, Any]) -> None:
-        raise serializers.ValidationError(
-            "Update not allowed for this resource.")
-
-
 class ReadOnlyWithMetadataSerializer(ReadOnlyBaseSerializer):
     """
     Custom model serializer that includes field metadata in the serialized data.
     """
     is_read_only: serializers.SerializerMethodField = serializers.SerializerMethodField()
-
 
     def to_representation(self, instance: Any) -> Dict[str, Any]:
         data = super().to_representation(instance)
