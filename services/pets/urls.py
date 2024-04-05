@@ -3,7 +3,7 @@ from .views import ModelFieldsView
 
 
 urlpatterns = [
-    path('modules/', ModelFieldsView.as_view(),
+    path('modules/fields_list/', ModelFieldsView.as_view(),
          name='models_list'),
 
 ]

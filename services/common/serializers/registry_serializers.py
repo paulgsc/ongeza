@@ -20,20 +20,16 @@ Example Usage:
     else:
         print("Error:", serialized_book.errors)
 """
-
-import json
-import os
 from typing import Type
 from functools import lru_cache
 from rest_framework import serializers
 from django.utils.module_loading import import_string
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
+from django.core.cache import cache
 
 
-class SerializerRegistry:
+class RedisSerializerRegistry:
     """
-    A registry for storing model-specific serializers.
+    A registry for storing model-specific serializers using Redis.
     """
 
     _instance = None
@@ -42,40 +38,27 @@ class SerializerRegistry:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls.load_serializers()
             cls._instance.load_serializers()
         return cls._instance
 
-    @classmethod
-    def load_serializers(cls):
+    def load_serializers(self):
         """
-        Load serializers from JSON files in the serializers_config directory.
+        Load serializers from Redis cache.
         """
-        serializers_config_dir = getattr(
-            settings, 'SERIALIZERS_CONFIG_DIR', None)
-        if not serializers_config_dir:
-            raise ImproperlyConfigured(
-                'SERIALIZERS_CONFIG_DIR setting is not defined.')
-
-        for filename in os.listdir(serializers_config_dir):
-            if filename.endswith('.json'):
-                file_path = os.path.join(serializers_config_dir, filename)
-                with open(file_path, 'r') as f:
-                    serializer_configs = json.load(f)
-
-                for config in serializer_configs:
-                    model_name = config['model'].lower()
-                    serializer_path = config['serializer']
-                    try:
-                        serializer_module, serializer_class_name = serializer_path.rsplit(
-                            '.', 1)
-                        serializer_module = import_string(serializer_module)
-                        serializer_class = getattr(
-                            serializer_module, serializer_class_name)
-                        cls.register_serializer(model_name, serializer_class)
-                    except (ImportError, AttributeError) as e:
-                        raise ValueError(
-                            f"Error loading serializer for model '{model_name}': {e}")
+        registered_serializers = cache.get_many(
+            [f'serializers:{model_name}' for model_name in cache.get('serializer_keys', [])])
+        for model_name, serializer_path in registered_serializers.items():
+            try:
+                serializer_module, serializer_class_name = serializer_path.rsplit(
+                    '.', 1)
+                serializer_module = import_string(serializer_module)
+                serializer_class = getattr(
+                    serializer_module, serializer_class_name)
+                self.register_serializer(model_name.split(':')[
+                                         1], serializer_class)
+            except (ImportError, AttributeError) as e:
+                raise ValueError(
+                    f"Error loading serializer for model '{model_name.split(':')[1]}': {e}") from e
 
     def register_serializer(self, model_name: str, serializer_class: Type[serializers.ModelSerializer]):
         """
@@ -86,6 +69,17 @@ class SerializerRegistry:
             serializer_class (Type[serializers.ModelSerializer]): The serializer class to register.
         """
         self.registry[model_name] = serializer_class
+        serializer_path = f"{serializer_class.__module__}.{serializer_class.__name__}"
+        cache.set(f'serializers:{model_name}', serializer_path)
+        self.update_serializer_keys()
+
+    def update_serializer_keys(self):
+        """
+        Update the list of serializer keys in the cache.
+        """
+        serializer_keys = [
+            f'serializers:{model_name}' for model_name in self.registry.keys()]
+        cache.set('serializer_keys', serializer_keys)
 
     @classmethod
     @lru_cache(maxsize=None)
@@ -103,10 +97,12 @@ class SerializerRegistry:
             ValueError: If no serializer is registered for the provided model name.
         """
         try:
-            return cls.registry[model_name]
+            return cls._instance.registry[model_name]
         except KeyError as exc:
             raise ValueError(
                 f"No serializer registered for model '{model_name}'") from exc
+
+    # The remaining methods (serialize_data, update_instance, create_instance) remain the same as in the original code.
 
     def serialize_data(self, model_name: str, instance, **kwargs):
         """

@@ -64,8 +64,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'app.middleware.ratelimit_middleware.RateLimitMiddleware',
-    'app.middleware.admin_auth_middleware.AdminAuthenticationMiddleware',
+    # 'app.middleware.ratelimit_middleware.RateLimitMiddleware',
+    # 'app.middleware.admin_auth_middleware.AdminAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]

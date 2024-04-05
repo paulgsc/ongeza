@@ -4,23 +4,23 @@
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.apps import apps
-
+from common.serializers.registry_serializers import RedisSerializerRegistry
+from common.serializers.field_meta_serializers import FieldMetaSerializer
 # Create your views here.
 
 
 class ModelFieldsView(APIView):
+    # TODO : Add permission, and access policy
 
     def get(self, request):
-        model_data = []
-
-        for model in apps.get_models():
-            if hasattr(model, 'can_be_featured') and model.can_be_featured():
-                model_name = model.__name__
-                record_count = model.objects.count()
-                model_data.append(
-                    {'name': model_name, 'record_count': record_count})
-        return Response(model_data, status=200)
+        registry = RedisSerializerRegistry()
+        model_name = request.query_params.get('model', None)
+        if not model_name:
+            return Response(status=500)
+        serializer_class = registry.get_serializer_class(model_name=model_name)
+        serialized_data = FieldMetaSerializer().get_serializer_fields_meta(
+            serializer_class=serializer_class)
+        return Response(serialized_data, status=200)
 
 
 class MyModelFieldMetaView(APIView):
