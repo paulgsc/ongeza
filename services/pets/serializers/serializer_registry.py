@@ -9,7 +9,6 @@ from common.serializers.registry_serializers import RedisSerializerRegistry
 
 
 def register_serializers():
-    print('mahomeboy')
     # Instantiate RedisSerializerRegistry
     registry = RedisSerializerRegistry()
 
