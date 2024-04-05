@@ -1,7 +1,7 @@
 """
     pets views
 """
-
+from uuid import uuid4
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.apps import apps
@@ -33,10 +33,16 @@ class PetsModelNamesView(APIView):
         installed_models = pets_app_config.get_models()
 
         # Extract the model names from the installed models
-        model_names = [model.__name__ for model in installed_models]
+        models = [
+            {
+                "id": str(uuid4()),
+                "name": model.__name__
+            }
+            for model in installed_models
+        ]
 
         # Return the list of model names as a JSON response
-        return Response(model_names)
+        return Response(models)
 
 
 class ModelFieldsView(APIView):
