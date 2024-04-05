@@ -9,6 +9,8 @@ from common.serializers.registry_serializers import RedisSerializerRegistry
 from common.serializers.field_meta_serializers import FieldMetaSerializer
 # Create your views here.
 
+registry = RedisSerializerRegistry()
+
 
 class PetsModelNamesView(APIView):
     """
@@ -61,7 +63,7 @@ class ModelFieldsView(APIView):
         Returns:
             Response: JSON response containing the field metadata.
         """
-        registry = RedisSerializerRegistry()
+
         model_name = request.query_params.get('model', None)
         if not model_name:
             return Response({'error': 'Model name not provided'}, status=400)
