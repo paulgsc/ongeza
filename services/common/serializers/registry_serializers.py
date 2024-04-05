@@ -68,10 +68,15 @@ class RedisSerializerRegistry:
             model_name (str): The name of the model.
             serializer_class (Type[serializers.ModelSerializer]): The serializer class to register.
         """
-        self.registry[model_name] = serializer_class
         serializer_path = f"{serializer_class.__module__}.{serializer_class.__name__}"
-        cache.set(f'serializers:{model_name}', serializer_path)
-        self.update_serializer_keys()
+        serializer_key = f'serializers:{model_name}'
+
+        # Check if the serializer key already exists in the cache
+        if not cache.get(serializer_key):
+            # If not, register the serializer and update the cache
+            self.registry[model_name] = serializer_class
+            cache.set(serializer_key, serializer_path)
+            self.update_serializer_keys()
 
     def update_serializer_keys(self):
         """
