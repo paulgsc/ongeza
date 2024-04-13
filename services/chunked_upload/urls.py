@@ -25,11 +25,10 @@ Examples:
 from django.urls import path
 from chunked_upload.views.upload import ChunkedUploadView
 
-upload_patterns = [
+urlpatterns = [
     # POST endpoint for creating new uploads
-    path('chunked-upload/', ChunkedUploadView.as_view(), name='chunked-upload'),
+    path('create_file/', ChunkedUploadView.as_view(), name='chunked-upload'),
     # PUT endpoint for updating existing uploads
-    path('chunked-upload/<int:pk>/', ChunkedUploadView.as_view(),
+    path('add_file_chunk/<int:pk>/', ChunkedUploadView.as_view(),
          name='chunked-upload-update'),
-
 ]

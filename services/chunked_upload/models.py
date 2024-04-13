@@ -1,3 +1,12 @@
+
+"""
+/*
+ * This code is adapted from the work originally created by Julio M Alegria in 2015,
+ * and modified by Jarrett A Keifer in 2015, and is licensed under the MIT-Zero License.
+ */
+
+"""
+
 import hashlib
 import uuid
 import os

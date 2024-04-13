@@ -1,3 +1,11 @@
+"""
+/*
+ * This code is adapted from the work originally created by Julio M Alegria in 2015,
+ * and modified by Jarrett A Keifer in 2015, and is licensed under the MIT-Zero License.
+ */
+
+"""
+
 import re
 
 from rest_framework.generics import GenericAPIView
@@ -9,7 +17,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-from services.settings.upload import CHECKSUM_TYPE
+from services.settings.upload import CHECKSUM_TYPE, MAX_BYTES
 from utils.queries import owner_or_admin
 from utils.exceptions import ChunkedUploadError
 from chunked_upload.serializers import ChunkedUploadSerializer, ChunkedUploadReadOnlySerializer
@@ -26,7 +34,7 @@ class ChunkedUploadBaseView(GenericAPIView):
     user_field_name = 'user'
     serializer_class = ChunkedUploadSerializer
     # Define permission classes at the class level
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     @property
     def response_serializer_class(self):
@@ -87,7 +95,7 @@ class ChunkedUploadBaseView(GenericAPIView):
         """
         raise PermissionDenied()
 
-    def put(self, request, pk=None, *args, **kwargs):
+    def put(self, request, *args, pk=None, **kwargs):
         """
         Handle PUT requests.
         """
@@ -96,7 +104,7 @@ class ChunkedUploadBaseView(GenericAPIView):
         except ChunkedUploadError as error:
             return Response(error.data, status=error.status_code)
 
-    def post(self, request, pk=None, *args, **kwargs):
+    def post(self, request, *args, pk=None, **kwargs):
         """
         Handle POST requests.
         """
@@ -105,7 +113,7 @@ class ChunkedUploadBaseView(GenericAPIView):
         except ChunkedUploadError as error:
             return Response(error.data, status=error.status_code)
 
-    def get(self, request, pk=None, *args, **kwargs):
+    def get(self, request, *args, pk=None, **kwargs):
         """
         Handle GET requests.
         """
@@ -134,7 +142,7 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
     content_range_pattern = re.compile(
         r'^bytes (?P<start>\d+)-(?P<end>\d+)/(?P<total>\d+)$'
     )
-    max_bytes = _settings.MAX_BYTES  # Max amount of data that can be uploaded
+    max_bytes = MAX_BYTES  # Max amount of data that can be uploaded
 
     def on_completion(self, upload, request):
         """
@@ -180,7 +188,7 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
             raise ChunkedUploadError(status=status.HTTP_400_BAD_REQUEST,
                                      detail=error_msg % 'complete')
 
-    def _put_chunk(self, request, pk=None, whole=False, *args, **kwargs):
+    def _put_chunk(self, request, *args, pk=None, whole=False, **kwargs):
         try:
             chunk = request.data[self.field_name]
         except KeyError as exc:
@@ -262,8 +270,19 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
             raise ChunkedUploadError(
                 status=status.HTTP_400_BAD_REQUEST, detail=exc.args[0]) from exc
 
-    def handle_put(self, request, pk=None, *args, **kwargs):
-        self._put_chunk(request, pk=pk, *args, **kwargs)
+    def _put(self, request, *args, pk=None, **kwargs):
+        if pk is None:
+            raise ChunkedUploadError(
+                status=status.HTTP_400_BAD_REQUEST,
+                detail="A primary key (pk) is required for updating an existing ChunkedUpload instance."
+            )
+
+        chunked_upload = self._put_chunk(request, pk=pk, *args, **kwargs)
+        return Response(
+            self.response_serializer_class(chunked_upload,
+                                           context={'request': request}).data,
+            status=status.HTTP_200_OK
+        )
 
     def checksum_check(self, chunked_upload, checksum):
         """
@@ -273,7 +292,7 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
             raise ChunkedUploadError(status=status.HTTP_400_BAD_REQUEST,
                                      detail='checksum does not match')
 
-    def handle_post(self, request, pk=None, *args, **kwargs) -> Response:
+    def handle_post(self, request, *args, pk=None, **kwargs) -> Response:
         # If pk is provided, use it as the upload_id
         upload_id = pk
 
@@ -310,7 +329,7 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
         return self.on_completion(chunked_upload, request)
 
     @method_decorator(cache_page(0))
-    def _get(self, request, pk=None, *args, **kwargs):
+    def _get(self, request, *args, pk=None, **kwargs):
         if pk:
             return self.retrieve(request, pk=pk, *args, **kwargs)
         else:
