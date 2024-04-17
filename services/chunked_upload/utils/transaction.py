@@ -65,9 +65,25 @@ def abortable_task(funct):
 # is aborted before exiting the transaction, and if true rollback
 # by raising an AbortedException
 def atomic_with_abortion(funct):
-    def abort_wrapper(*args, **kwargs):
-        ret = funct(*args, **kwargs)
-        if current_task and hasattr(current_task, "if_aborted"):
-            current_task.if_aborted()
+    @wraps(funct)
+    def wrapper(self, *args, **kwargs):
+        instance = kwargs.get('instance', None)
+        try:
+            # check if aborted before doing anything
+            # if so, this will raise Aborted Error
+            self.if_aborted()
+
+            # Enforce instance type if instance is provided
+            if instance and not isinstance(instance, ChunkedUpload):
+                raise AbortedError(
+                    "Instance must be an instance of ChunkedUpload")
+
+            # call the task function within an atomic transaction
+            with transaction.atomic():
+                ret = funct(self, *args, **kwargs)
+        except AbortedError:
+            return "Task Aborted"
         return ret
-    return transaction.atomic(abort_wrapper)
+
+    wrapper.__name__ = funct.__name__
+    return shared_task(wrapper, bind=True, base=CustomAbortableTask)

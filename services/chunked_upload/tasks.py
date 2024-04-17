@@ -2,6 +2,7 @@
 from chunked_upload.utils.transaction import atomic_with_abortion, abortable_task
 from utils.consumer_messenger import ChannelManager
 from utils.exceptions import AbortedError
+from chunked_upload.utils.create_request import create_request
 
 
 @abortable_task
@@ -42,12 +43,11 @@ def append_chunk_task(instance, chunk, chunk_size=None, save=True):
 
 @abortable_task
 @atomic_with_abortion
-def save_chunked_upload(serializer_cls, serializer_data, kwargs):
+def handle_chunked_upload(*args, **kwargs):
     """
     Serialize and save a chunked upload.
 
     Args:
-        serializer_cls (Serializer): The serializer class to be used for serialization.
         serializer_data (dict): The data to be serialized.
         kwargs (dict): Additional keyword arguments to be passed to the serializer's save method.
 
@@ -57,15 +57,33 @@ def save_chunked_upload(serializer_cls, serializer_data, kwargs):
     Raises:
         AbortedError: If the serializer data is invalid.
     """
-    chunked_upload = serializer_cls(data=serializer_data)
-    if not chunked_upload.is_valid():
-        # Raise a custom exception with the serializer errors
-        raise AbortedError(chunked_upload.errors)
+    # import within func to avoid circular import()
+    from chunked_upload.views.upload import ChunkedUploadView
 
-    # chunked_upload is currently a serializer
-    # save returns model instance
-    chunked_upload = chunked_upload.save(**kwargs)
-    return chunked_upload
+    # Create a request object
+    query_string = kwargs.pop('query_string', None)
+    request_method = kwargs.pop('request_method', None)
+    path = kwargs.pop('path', '/')
+    pk = kwargs.pop('pk', None)
+    request = create_request(query_string=query_string,
+                             request_method=request_method, path=path, )
+    print(f'request: {request} data: {request}')
+
+    # Get the view class and instantiate it
+    view = ChunkedUploadView()
+
+    # Dispatch the request to the appropriate view method based on the request method
+    if request.method == 'GET':
+        response = view.handle_get(request=request, pk=pk, *args, **kwargs)
+    elif request.method == 'POST':
+        response = view.handle_post(request=request, pk=pk, **kwargs)
+    elif request.method == 'PUT':
+        response = view.handle_put(request=request, pk=pk, *args, **kwargs)
+    else:
+        raise AbortedError(f"Unsupported request method: {request.method}")
+
+    # Return the response or handle it as needed
+    return response
 
 
 @abortable_task

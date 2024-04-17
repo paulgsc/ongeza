@@ -21,7 +21,7 @@ from services.settings.upload import CHECKSUM_TYPE, MAX_BYTES
 from utils.queries import owner_or_admin
 from utils.exceptions import ChunkedUploadError
 from chunked_upload.serializers import ChunkedUploadSerializer, ChunkedUploadReadOnlySerializer
-from ..tasks import append_chunk_task, save_chunked_upload, checksum_check
+from ..tasks import append_chunk_task, handle_chunked_upload, checksum_check
 from ..models import ChunkedUpload
 
 
@@ -96,29 +96,54 @@ class ChunkedUploadBaseView(GenericAPIView):
         raise PermissionDenied()
 
     def put(self, request, *args, pk=None, **kwargs):
-        """
-        Handle PUT requests.
-        """
+        """ Handle PUT requests by calling the Celery task. """
         try:
-            return self.handle_put(request, pk=pk, *args, **kwargs)
+            task = handle_chunked_upload.delay(
+                request_method='PUT',
+                query_string=request.META.get('QUERY_STRING', ''),
+                path=request.path,
+                request_user=request.user if request.user.is_authenticated else None,
+                pk=pk,
+                *args,
+                **kwargs
+            )
+            return Response({"task_id": task.id}, status=202)
         except ChunkedUploadError as error:
             return Response(error.data, status=error.status_code)
 
     def post(self, request, *args, pk=None, **kwargs):
-        """
-        Handle POST requests.
-        """
+        """ Handle POST requests by calling the Celery task. """
+        print(args, 'hello mahomeboy')
         try:
-            return self.handle_post(request, pk=pk, *args, **kwargs)
+            kwargs = {
+                "request_method": 'POST',
+                "query_string": request.META.get('QUERY_STRING', ''),
+                "path": request.path,
+                "request_user": request.user if request.user.is_authenticated else None,
+                "pk": pk,
+                **kwargs,
+            }
+            task = handle_chunked_upload.delay(
+                *args,
+                **kwargs
+            )
+            return Response({"task_id": task.id}, status=202)
         except ChunkedUploadError as error:
             return Response(error.data, status=error.status_code)
 
     def get(self, request, *args, pk=None, **kwargs):
-        """
-        Handle GET requests.
-        """
+        """ Handle GET requests by calling the Celery task. """
         try:
-            return self.handle_get(request, pk=pk, *args, **kwargs)
+            task = handle_chunked_upload.delay(
+                request_method='GET',
+                query_string=request.META.get('QUERY_STRING', ''),
+                path=request.path,
+                request_user=request.user if request.user.is_authenticated else None,
+                pk=pk,
+                *args,
+                **kwargs
+            )
+            return Response({"task_id": task.id}, status=202)
         except ChunkedUploadError as error:
             return Response(error.data, status=error.status_code)
 
@@ -234,43 +259,48 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
                 ),
             )
 
-        try:
-            if pk:
-                upload_id = pk
-                chunked_upload = get_object_or_404(self.get_queryset(),
-                                                   pk=upload_id)
-                self.is_valid_chunked_upload(chunked_upload)
-                if chunked_upload.offset != start:
-                    raise ChunkedUploadError(
-                        status=status.HTTP_400_BAD_REQUEST,
-                        detail='Offsets do not match',
-                        expected_offset=chunked_upload.offset,
-                        provided_offset=start,
-                    )
+        if pk:
+            upload_id = pk
+            chunked_upload = get_object_or_404(self.get_queryset(),
+                                               pk=upload_id)
+            self.is_valid_chunked_upload(chunked_upload)
+            if chunked_upload.offset != start:
+                raise ChunkedUploadError(
+                    status=status.HTTP_400_BAD_REQUEST,
+                    detail='Offsets do not match',
+                    expected_offset=chunked_upload.offset,
+                    provided_offset=start,
+                )
 
-                task = append_chunk_task.delay(
-                    chunked_upload, chunk, chunk_size)
-                return Response({'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
+            task = append_chunk_task.delay(
+                chunked_upload, chunk, chunk_size)
+            return Response({'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
 
-            kwargs = {'offset': chunk.size}
+        kwargs = {'offset': chunk.size}
 
-            if hasattr(self.model, self.user_field_name):
-                if hasattr(request, 'user') and request.user.is_authenticated:
-                    kwargs[self.user_field_name] = request.user
-                else:
-                    raise ChunkedUploadError(
-                        status=status.HTTP_400_BAD_REQUEST,
-                        detail="Upload requires user authentication but user cannot be determined",
-                    )
-                # Create a Celery task to serialize and save the data asynchronously
-                task = save_chunked_upload.delay(request.data, kwargs)
-                return Response({'task_id': task.id}, status=status.HTTP_202_ACCEPTED)
-        except Exception as exc:
-            # Handle the InvalidSerializerData exception raised by the task
-            raise ChunkedUploadError(
-                status=status.HTTP_400_BAD_REQUEST, detail=exc.args[0]) from exc
+        if hasattr(self.model, self.user_field_name):
+            if hasattr(request, 'user') and request.user.is_authenticated:
+                kwargs[self.user_field_name] = request.user
+            else:
+                pass
+            # @TODO add auth
+                # raise ChunkedUploadError(
+                #     status=status.HTTP_400_BAD_REQUEST,
+                #     detail="Upload requires user authentication but user cannot be determined",
+                # )
+            # Create a Celery task to serialize and save the data asynchronously
+            chunked_upload = self.serializer_class(data=request.data)
+            if not chunked_upload.is_valid():
+                raise ChunkedUploadError(status=status.HTTP_400_BAD_REQUEST,
+                                         detail=chunked_upload.errors)
 
-    def _put(self, request, *args, pk=None, **kwargs):
+            # chunked_upload is currently a serializer;
+            # save returns model instance
+            chunked_upload = chunked_upload.save(**kwargs)
+
+        return chunked_upload
+
+    def handle_put(self, request, *args, pk=None, **kwargs):
         if pk is None:
             raise ChunkedUploadError(
                 status=status.HTTP_400_BAD_REQUEST,
@@ -298,7 +328,7 @@ class ChunkedUploadView(ListModelMixin, RetrieveModelMixin,
 
         # If pk is not provided, handle chunked upload asynchronously
         if not pk:
-            self._put_chunk(request, pk=pk, *args, **kwargs)
+            self._put_chunk(request, *args, whole=True, **kwargs)
 
         # Check if checksum is provided
         checksum = request.data.get(CHECKSUM_TYPE)

@@ -20,10 +20,10 @@ CELERY_TIMEZONE = 'America/Los_Angeles'
 CELERY_RESULT_EXPIRES = 5  # Results expire after 24 hours
 CELERY_REDIRECT_STDOUTS = False
 
-CELERY_BEAT_SCHEDULE = {
-    'chunk_upload': {
-        'task': 'tradingbot.tasks.tasks.fetch_price_data',
-        'schedule': 300.0,  # Run every 5 seconds
-    },
-}
+# CELERY_BEAT_SCHEDULE = {
+#     'chunk_upload': {
+#         'task': 'tradingbot.tasks.tasks.fetch_price_data',
+#         'schedule': 300.0,  # Run every 5 seconds
+#     },
+# }
 BROKER_CONNECTION_MAX_RETRIES = 3

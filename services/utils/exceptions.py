@@ -33,3 +33,13 @@ class RedisPubSubError(Exception):
     to channels. It can be raised due to various reasons, including
     network issues, authentication failures, or invalid operations.
     """
+
+
+class CreateRequestError(Exception):
+    """
+    Exception raised if errors occur during the creation of a request.
+    """
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
