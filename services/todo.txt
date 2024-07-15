@@ -1,0 +1,34 @@
+from rest_framework import permissions
+
+class IsStaffOrReadOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        # Allow read operations for any request
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        # Only allow write operations for staff users
+        return request.user.is_staff
+
+class CanReadIsStaffField(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Only allow reading the `is_staff` field for staff users
+        if request.method in permissions.SAFE_METHODS and request.user.is_staff:
+            return True
+        # Always allow writing the `is_staff` field (handled by other permissions)
+        return True
+
+
+from rest_framework import serializers
+from .permissions import IsStaffOrReadOnly, CanReadIsStaffField
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'password', 'is_staff']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'is_staff': {'read_only': True},
+        }
+        field_permissions_classes = {
+            'password': [IsStaffOrReadOnly],
+            'is_staff': [CanReadIsStaffField],
+        }
